@@ -7,8 +7,12 @@ import { splitTop } from '../document.mjs';
 import { decodeEntities } from '../text-metrics.mjs';
 
 const ID = 'font-stack';
-const REQUIRED_STACK = ['PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC'];
-const CANONICAL = "'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', system-ui, sans-serif";
+// ── USER CUSTOMIZATION: Noto Sans KR is the primary font (user request) —
+// it is the one font available across macOS/Windows/Linux and matches the
+// matplotlib export font, so metrics stay consistent. Apple SD Gothic Neo and
+// Malgun Gothic remain required fallbacks for machines without it.
+const REQUIRED_STACK = ['Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic'];
+const CANONICAL = "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif";
 
 // CSS family matching is ASCII case-insensitive and must match the entire token. Using
 // indexOf on the raw string would be fooled by variants such as 'Microsoft YaHei UI'
@@ -73,16 +77,16 @@ export const fontStack = {
             attribute: 'font-family',
             actual: String(value),
             expected: CANONICAL,
-            hint: family === 'Noto Sans CJK SC'
-              ? 'without it, Linux server-side rendering falls back to a font with no CJK coverage'
-              : 'the stack must cover macOS, Windows and Linux',
+            hint: family === 'Noto Sans KR'
+              ? 'the primary font — without it the stack renders in whatever the OS picks, with different metrics'
+              : 'the stack must keep platform fallbacks after Noto Sans KR',
           },
         }));
       }
       if (outOfOrder) {
         out.push(error({
           check: ID, code: 'font-stack-out-of-order', ...where,
-          message: 'The font stack is not ordered macOS → Windows → Linux',
+          message: 'The font stack is not ordered Noto Sans KR → Apple SD Gothic Neo → Malgun Gothic',
           repair: { attribute: 'font-family', actual: String(value), expected: CANONICAL, hint: null },
         }));
       }

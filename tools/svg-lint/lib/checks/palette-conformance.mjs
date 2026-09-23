@@ -2,7 +2,7 @@
 // The 5 light semantic triples from SKILL.md "Colors" + the style consistency requirement from "Dashed grouping boxes".
 // The color criterion takes only the fill= / stroke= presentation attributes (see Global Constraints) and does not go through CSS.
 import { warning } from '../report.mjs';
-import { ALLOWED_COLORS, BASE_TEXT, semanticByFill } from '../palette.mjs';
+import { BASE_TEXT, semanticByFill, isAllowedColor } from '../palette.mjs';
 import { effectiveFill, effectiveStroke } from '../document.mjs';
 
 const ID = 'palette-conformance';
@@ -65,6 +65,11 @@ export const paletteConformance = {
         ['fill', effectiveFill(entry), entry.fill ?? null],
         ['stroke', effectiveStroke(entry), entry.stroke ?? null],
       ]) {
+        // ── USER CUSTOMIZATION: an undeclared attribute resolves to the SVG
+        // initial value here, but in an HTML-embedded SVG the page's CSS may
+        // declare it instead. Nothing was written in this file, so there is
+        // nothing to judge: skip rather than report the resolved default.
+        if (declared === null) continue;
         // Three legal values name no colour at all: `none` and `transparent` paint nothing, and a gradient
         // or pattern reference names an element instead of a colour. Quoting any of them back as an
         // off-palette choice, with advice to pick a semantic triple, would be advice to change something
@@ -74,7 +79,7 @@ export const paletteConformance = {
         // cannot judge, and both readings avoid a false positive. (Cited by name, not line: a line number in
         // another file is a claim that goes stale the next time that file is edited.)
         if (NOT_A_COLOR.test(value)) continue;
-        if (!ALLOWED_COLORS.has(value)) {
+        if (!isAllowedColor(value)) {
           // A colour name renders a real colour, so "not in the house palette" would send the author
           // hunting for a swatch problem when the fix is a notation change. But the notation change is not
           // the whole fix: `white` becomes the allowed #ffffff while `black` becomes #000000, which the

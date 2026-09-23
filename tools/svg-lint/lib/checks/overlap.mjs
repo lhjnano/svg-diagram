@@ -165,6 +165,18 @@ const endsInside = (points, rect) => pointInBBox(points[0], rect.bbox)
 const endsNear = (points, rect) => pointToBBoxDistance(points[0], rect.bbox) <= ENDPOINT_RADIUS
   || pointToBBoxDistance(points.at(-1), rect.bbox) <= ENDPOINT_RADIUS;
 
+// Box-like path: closed, actually filled, and substantial in both dimensions.
+// Arrowheads are closed and filled but tiny (the 16px floor excludes them);
+// connectors are open. Kept in step with the same test in box-clearance and
+// padding-balance.
+const isBoxLikePath = (p) => {
+  if (!/(z|Z)\s*$/.test(p.d.trim())) return false;
+  if (p.fill === null || p.fill === 'none' || p.fill === 'transparent') return false;
+  const w = p.bbox.maxX - p.bbox.minX;
+  const h = p.bbox.maxY - p.bbox.minY;
+  return w >= 16 && h >= 16 && p.points.length >= 4;
+};
+
 // "The connector enters this box" cannot be tested with clearance === 0: bboxToPolylineDistance
 // uses pointInBBox which **counts tangency as 0**, so a connector that starts exactly on the
 // box boundary and lies entirely outside still counts as "entering". That is a permitted
@@ -383,6 +395,11 @@ export const overlap = {
       }
 
       for (const path of doc.paths) {
+        // A filled, closed, box-like path is a box (a card, a frame), not a
+        // connector: label↔box spacing is box-clearance's business, and
+        // measuring a frame's walls as connector lines flags every label the
+        // frame encloses. matplotlib card/frames are exactly this shape.
+        if (isBoxLikePath(path)) continue;
         const runs = traces.get(path);
         // Measures each subpath in turn and takes the **most severe violation**: including a
         // phantom jump segment would artificially shorten the clearance. "Closest" cannot be

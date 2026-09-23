@@ -7,6 +7,7 @@ import { horizontalGap, verticalGap, bboxUnion } from '../geometry.mjs';
 import { panelRects, enclosingContainers } from '../panels.mjs';
 
 const ID = 'block-spacing';
+// ── USER CUSTOMIZATION: restored to the bybit band 25–30px (user request).
 const MIN_GAP = 25;
 const MAX_GAP = 30;
 const RANGE = `${MIN_GAP}–${MAX_GAP}`;

@@ -8,12 +8,15 @@ import { panelRects } from '../panels.mjs';
 import { BASELINE_CENTER_RATIO, groupIntoLines, sameLine } from '../text-metrics.mjs';
 
 const ID = 'baseline-offset';
-const BASELINE_TOLERANCE = 1;
+const BASELINE_TOLERANCE = 1; // restored (user request: flag anything beyond 1px)
 const CENTER_TOLERANCE = 1;
+// ── USER CUSTOMIZATION: measured left-inset band for start-anchored labels.
+const LEFT_INSET_MIN = 8;
+const LEFT_INSET_MAX = 24;
 // The block midpoint has a slightly looser tolerance than a single baseline: in hand-drawn
 // diagrams two baselines are often rounded to integers (62.2/80.2 written as 61/79), so the
 // midpoint is naturally off by about 1.2px. A 6px overall shift is still caught.
-const BLOCK_TOLERANCE = 1.5;
+const BLOCK_TOLERANCE = 1; // was 1.5 (bybit) — user request: 1px strictness
 const round = (v) => Number(v.toFixed(1));
 
 export const baselineOffset = {
@@ -95,6 +98,21 @@ export const baselineOffset = {
     for (const t of doc.texts) {
       if (!t.container) continue;
       if (panels.has(t.container) || inLabelRow(t)) continue;
+      // ── USER CUSTOMIZATION: ~/documents style LEFT-ALIGNS box labels (99% of
+      // in-box labels are text-anchor="start"; measured insets cluster at
+      // 10–20px). A start-anchored label is accepted inside a measured inset
+      // band instead of being an error; middle keeps the centring rule.
+      if (t.textAnchor === 'start') {
+        const inset = t.x - t.container.x;
+        if (inset < LEFT_INSET_MIN || inset > LEFT_INSET_MAX) {
+          out.push(warning({
+            check: ID, code: 'label-left-inset-out-of-band', line: t.line, column: t.column,
+            message: `Left-aligned label sits ${round(inset)}px from its box's left edge; the band is ${LEFT_INSET_MIN}–${LEFT_INSET_MAX}px`,
+            repair: { attribute: 'x', actual: String(round(inset)), expected: `${LEFT_INSET_MIN}–${LEFT_INSET_MAX}`, hint: 'left-aligned labels keep a consistent inset' },
+          }));
+        }
+        continue;
+      }
       if (t.textAnchor !== 'middle') {
         // Report whether the attribute was declared, not the effective value: t.textAnchor
         // defaults to start, so reporting start directly would send the reader to search for

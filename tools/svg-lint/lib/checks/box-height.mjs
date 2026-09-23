@@ -6,7 +6,11 @@ import { groupIntoLines } from '../text-metrics.mjs';
 import { panelRects } from '../panels.mjs';
 
 const ID = 'box-height';
+// ── USER CUSTOMIZATION: strict base (font×3, bybit) with the user's chosen
+// per-line factor of 1.3 (bybit uses 1.5). Line-spacing rule back to 1.5×
+// with the original 1px tolerance, box tolerance back to 0.5.
 const HEIGHT_FACTOR = 3;
+const BOX_LINE_HEIGHT_FACTOR = 1.3;
 const LINE_HEIGHT_FACTOR = 1.5;
 const HEIGHT_TOLERANCE = 0.5;
 const LINE_SPACING_TOLERANCE = 1;
@@ -46,8 +50,11 @@ export const boxHeight = {
       // both places must give the same answer to "what counts as one line".
       const baselines = groupIntoLines(rect.texts);
       const lines = baselines.length;
-      const lineHeight = fontSize * LINE_HEIGHT_FACTOR;
-      const required = fontSize * HEIGHT_FACTOR + (lines - 1) * lineHeight;
+      // Rounded at assignment so the message, repair and comparison all carry
+      // a paste-safe number — the 1.3 line factor otherwise leaks float noise
+      // (13 × 1.3 = 16.900000000000002) into findings.
+      const lineHeight = round(fontSize * BOX_LINE_HEIGHT_FACTOR);
+      const required = round(fontSize * HEIGHT_FACTOR + (lines - 1) * lineHeight);
 
       if (rect.height < required - HEIGHT_TOLERANCE) {
         out.push(error({
@@ -77,7 +84,7 @@ export const boxHeight = {
         // spacing like 19.04px is accepted (≤0.05px of slack), but in return the message, repair,
         // and decision all use the same number.
         const gap = round(baselines[k].y - baselines[k - 1].y);
-        const rowHeight = baselines[k].fontSize * LINE_HEIGHT_FACTOR;
+        const rowHeight = round(baselines[k].fontSize * LINE_HEIGHT_FACTOR);
         if (Math.abs(gap - rowHeight) > LINE_SPACING_TOLERANCE) {
           out.push(warning({
             check: ID, code: 'line-height-off', line: rect.line, column: rect.column,
@@ -85,7 +92,7 @@ export const boxHeight = {
             // No attribute: the finding is about the relationship between two baselines, and
             // line/column points at the box, not at any individual <text>; including `y` would
             // suggest editing the box's y. Same reasoning as the two symmetry findings in viewbox-clipping.
-            repair: { actual: String(gap), expected: String(rowHeight), hint: 'line height = font-size × 1.5' },
+            repair: { actual: String(gap), expected: String(rowHeight), hint: `line height = font-size × ${LINE_HEIGHT_FACTOR}` },
           }));
         }
       }

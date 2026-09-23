@@ -12,6 +12,9 @@ import { blockSpacing } from './checks/block-spacing.mjs';
 import { arrowMarker } from './checks/arrow-marker.mjs';
 import { textOverflow } from './checks/text-overflow.mjs';
 import { overlap } from './checks/overlap.mjs';
+import { boxClearance } from './checks/box-clearance.mjs';
+import { textClearance } from './checks/text-clearance.mjs';
+import { paddingBalance } from './checks/padding-balance.mjs';
 import { lightBgFallback } from './checks/light-bg-fallback.mjs';
 import { paletteConformance } from './checks/palette-conformance.mjs';
 import { connectorGeometry } from './checks/connector-geometry.mjs';
@@ -19,14 +22,17 @@ import { connectorGeometry } from './checks/connector-geometry.mjs';
 export const CHECKS = [
   xmlEscaping,
   viewboxClipping,
-  fontStack,
+  fontStack,          // re-enabled with a Korean stack (user request)
   boxHeight,
   baselineOffset,
   blockSpacing,
   arrowMarker,
   textOverflow,
   overlap,
-  lightBgFallback,
+  boxClearance,       // label ↔ box vertical breathing room (user request)
+  textClearance,      // stacked text rows keep breathing room (user request)
+  paddingBalance,     // balanced padding above/below text in boxes (user request)
+  lightBgFallback,    // re-enabled (user request)
   paletteConformance,
   connectorGeometry,
 ];

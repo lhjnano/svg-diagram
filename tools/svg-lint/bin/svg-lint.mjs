@@ -2,8 +2,9 @@
 // tools/svg-lint/bin/svg-lint.mjs
 // svg-lint — house-style checker for hand-written SVG diagrams.
 // Zero dependencies on purpose: a bare clone must be able to run this.
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { lintSource } from '../lib/lint.mjs';
+import { fixSource } from '../lib/fix.mjs';
 import { summarize } from '../lib/report.mjs';
 import { formatText } from '../lib/format-text.mjs';
 import { formatJson } from '../lib/format-json.mjs';
@@ -11,6 +12,7 @@ import { formatJson } from '../lib/format-json.mjs';
 const USAGE = `Usage: svg-lint [options] <file.svg...>
 
 Options:
+  --fix         apply the mechanically-safe fixes in place (writes <file>.bak)
   --json        emit machine-readable JSON instead of text
   --quiet       report errors only, suppress warnings
   -h, --help    show this help
@@ -24,9 +26,10 @@ Exit codes:
 // Not exported: the CLI tests drive this through a spawned process, which is the contract that
 // matters, so an export would widen the surface without adding a caller.
 function parseArgv(argv) {
-  const options = { json: false, quiet: false, files: [] };
+  const options = { fix: false, json: false, quiet: false, files: [] };
   for (const arg of argv) {
-    if (arg === '--json') options.json = true;
+    if (arg === '--fix') options.fix = true;
+    else if (arg === '--json') options.json = true;
     else if (arg === '--quiet') options.quiet = true;
     else if (arg === '-h' || arg === '--help') return { help: true, options };
     else if (arg.startsWith('-')) return { unknownOption: arg, options };
@@ -63,6 +66,32 @@ function main(argv) {
     }
   }
   if (sources.length === 0) return 2;
+
+  // --fix rewrites each file in place after saving <file>.bak, and the lint
+  // verdict below is computed on the FIXED source — what you would get by
+  // running the checker again afterwards.
+  if (parsed.options.fix) {
+    for (const item of sources) {
+      let fixed;
+      try {
+        fixed = fixSource(item.source);
+      } catch (cause) {
+        process.stderr.write(`Cannot fix ${item.file}: ${cause.message}\n`);
+        continue;
+      }
+      if (fixed.applied.length === 0) continue;
+      try {
+        writeFileSync(`${item.file}.bak`, item.source, 'utf8');
+        writeFileSync(item.file, fixed.source, 'utf8');
+        item.source = fixed.source;
+        process.stdout.write(`${item.file} — fixed in place (backup at ${item.file}.bak):\n`);
+        for (const line of fixed.applied) process.stdout.write(`  · ${line}\n`);
+      } catch (cause) {
+        process.stderr.write(`Cannot write ${item.file}: ${cause.message}\n`);
+      }
+    }
+  }
+
   const results = sources.map(({ file, source }) => lintSource(file, source));
   const summary = summarize(results);
   process.stdout.write(json ? formatJson(results, summary) : formatText(results, parsed.options));

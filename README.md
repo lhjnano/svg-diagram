@@ -1,36 +1,36 @@
-# svg-diagram
+# svg-lint
 
 A house style for hand-written SVG diagrams your agent can follow — the layout arithmetic, the colour system, and a zero-dependency linter that proves it did.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Agent Skills](https://img.shields.io/badge/Agent-Skills-7C3AED.svg)](https://github.com/vercel-labs/skills)
-[![svg-lint: 12 checks](https://img.shields.io/badge/svg--lint-12%20checks-22c55e.svg)](#the-lint-gate)
+[![svg-lint: 15 checks](https://img.shields.io/badge/svg--lint-15%20checks-22c55e.svg)](#the-lint-gate)
 
-![A Markdown doc goes through the svg-diagram skill and comes out as assets/arch.svg](assets/house-style.svg)
+![A Markdown doc goes through the svg-lint skill and comes out as assets/arch.svg](assets/house-style.svg)
 
 ## Install
 
 Paste this to your coding agent:
 
 ```
-Install the svg-diagram skill from https://github.com/bybit-exchange/svg-diagram
-for me by running: npx skills add bybit-exchange/svg-diagram -g
+Install the svg-lint skill from https://github.com/lhjnano/svg-diagram
+for me by running: npx skills add lhjnano/svg-diagram -g
 ```
 
 Or run it yourself:
 
 ```bash
-npx skills add bybit-exchange/svg-diagram -g
+npx skills add lhjnano/svg-diagram -g
 ```
 
 The CLI detects which agents you have installed and writes each one's path. Drop `-g` to install into the current project instead.
 
 | Surface | Path |
 |---|---|
-| Claude Code | `~/.claude/skills/svg-diagram/` |
-| Codex, Cursor, Gemini CLI, Copilot, opencode, Antigravity | `~/.agents/skills/svg-diagram/` — they share one directory |
-| Pi | `~/.pi/skills/svg-diagram/` |
-| Windsurf, Continue, Roo, Goose, Kiro, Trae and 40+ more | `~/.<agent>/skills/svg-diagram/` |
+| Claude Code | `~/.claude/skills/svg-lint/` |
+| Codex, Cursor, Gemini CLI, Copilot, opencode, Antigravity | `~/.agents/skills/svg-lint/` — they share one directory |
+| Pi | `~/.pi/skills/svg-lint/` |
+| Windsurf, Continue, Roo, Goose, Kiro, Trae and 40+ more | `~/.<agent>/skills/svg-lint/` |
 | Claude.ai | Zip the folder and upload it under Settings → Capabilities → Skills (skill text only — `svg-lint` needs local Node) |
 
 Every path is named from the skill's frontmatter `name`, not from where the skill sits here, so moving files in this repository doesn't change them.
@@ -38,20 +38,20 @@ Every path is named from the skill's frontmatter `name`, not from where the skil
 `SKILL.md` is at the repository root, so the install copies the root and `svg-lint` comes along with the skill text. The linter has no dependencies, so it runs from wherever it landed:
 
 ```bash
-node ~/.claude/skills/svg-diagram/tools/svg-lint/bin/svg-lint.mjs diagram.svg
+node ~/.claude/skills/svg-lint/tools/svg-lint/bin/svg-lint.mjs diagram.svg
 ```
 
 If you only want the skill text, take the one file the agent reads:
 
 ```bash
-mkdir -p ~/.claude/skills/svg-diagram
-curl -fsSL https://raw.githubusercontent.com/bybit-exchange/svg-diagram/main/SKILL.md \
-  -o ~/.claude/skills/svg-diagram/SKILL.md
+mkdir -p ~/.claude/skills/svg-lint
+curl -fsSL https://raw.githubusercontent.com/lhjnano/svg-diagram/main/SKILL.md \
+  -o ~/.claude/skills/svg-lint/SKILL.md
 ```
 
 The skill works on its own that way; `svg-lint` is what you give up.
 
-Then start a new session and ask for a diagram — the agent should announce that it's using `svg-diagram`.
+Then start a new session and ask for a diagram — the agent should announce that it's using `svg-lint`.
 
 ## Gallery
 
@@ -151,7 +151,10 @@ The full rules — the character width tables, the six arrowhead colour variants
 ```bash
 node tools/svg-lint/bin/svg-lint.mjs diagram.svg
 node tools/svg-lint/bin/svg-lint.mjs diagram.svg --json
+node tools/svg-lint/bin/svg-lint.mjs diagram.svg --fix   # safe repairs in place, writes <file>.bak
 ```
+
+`--fix` applies the mechanically-safe subset and nothing else: XML escaping, the Hangul font stack (rewriting non-conforming `font-family` declarations), the white canvas rect, the `width` attribute, `markerUnits` on markers, and a viewBox recompute to content + 22px margins (skipped when the model notes an unsupported transform). Geometry findings — box heights, block spacing, baselines, label clearances — are layout decisions and stay report-only. It is idempotent: a second run applies nothing.
 
 Try it on a deliberately broken file:
 
@@ -167,7 +170,7 @@ That reports 3 errors and 7 warnings and exits 1: the unescaped `&`, the missing
          repair: font-family: absent → 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', system-ui, sans-serif · SKILL.md marks this non-negotiable
 ```
 
-The 12 checks cover XML escaping, viewBox clipping, the font stack, box height, baseline offset, block spacing, arrow markers, text overflow, overlap, light-background fallback, palette conformance and connector geometry. A thirteenth id, `document-model`, raises no findings of its own. It's how the model layer reports what it couldn't read, so the geometry checks never draw conclusions from coordinates they got wrong.
+The 15 checks cover XML escaping, viewBox clipping, the font stack, box height, baseline offset, block spacing, arrow markers, text overflow, overlap, label↔box vertical breathing room, stacked-text-row breathing room, box padding balance, light-background fallback, palette conformance and connector geometry. A sixteenth id, `document-model`, raises no findings of its own. It's how the model layer reports what it couldn't read, so the geometry checks never draw conclusions from coordinates they got wrong.
 
 > `0 errors, 0 warnings` is the only pass; a warning is a failure.
 

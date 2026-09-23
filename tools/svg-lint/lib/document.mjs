@@ -17,6 +17,12 @@ import { normalizeHex } from './color.mjs';
 // them is caught by UNSUPPORTED_TRANSFORM_RE below and noted.
 const TRANSLATE_RE = /translate\(\s*(-?[\d.]+)(?:[\s,]+(-?[\d.]+))?\s*\)/g;
 const UNSUPPORTED_TRANSFORM_RE = /(scale|rotate|matrix|skewX|skewY)\s*\(/;
+// rotate(-0 …) / rotate(0 …) / rotate(360 …) is the identity. matplotlib emits
+// rotate(-0 cx cy) on every <text>, and treating a no-op as unmodelled blanks
+// the geometry verdicts for the whole subtree — 18 spurious notes on one
+// exported figure, and the conservative viewBox-recompute fix stays skipped
+// forever. Stripped from the transform string before the unsupported test.
+const NOOP_ROTATE_RE = /rotate\s*\(\s*-?(?:0+(?:\.0+)?|360(?:\.0+)?)\s*[^)]*\)/g;
 // Elements that carry no paint of their own because nothing of them is drawn.
 const NON_RENDERING_TAGS = new Set(['title', 'desc', 'metadata']);
 
@@ -451,6 +457,15 @@ const inheritedPaint = (declared, inheritedValue) => {
   return own === undefined || own.toLowerCase() === 'inherit' ? inheritedValue : own;
 };
 
+// The style attribute declares the same paint the presentation attributes do;
+// matplotlib exports use it exclusively. Own declaration first (attribute,
+// then style), then the nearest ancestor — the same priority the text-anchor
+// fix follows.
+const stylePaint = (el, name, inheritedValue) => {
+  const fromStyle = el.attrs.style?.match(new RegExp(`(?:^|;)\\s*${name}\\s*:\\s*([^;"}]+)`))?.[1]?.trim();
+  return inheritedPaint(el.attrs[name] ?? fromStyle ?? undefined, inheritedValue);
+};
+
 // The authoritative source for colours is presentation attributes (Global Constraints); the
 // inheritance chain has already been resolved during collect, so this function only adds
 // SVG's initial values (from SVG 1.1: `fill: black` / `stroke: none`).
@@ -559,7 +574,7 @@ export function buildDocument(parsed) {
         dx += Number(m[1]);
         dy += Number(m[2] ?? 0);
       }
-      if (UNSUPPORTED_TRANSFORM_RE.test(transform)) {
+      if (UNSUPPORTED_TRANSFORM_RE.test(transform.replace(NOOP_ROTATE_RE, ''))) {
         note('unsupported-transform', `Transform "${transform}" is not modelled; geometry checks on this subtree may be wrong`, el);
       }
     }
@@ -587,8 +602,13 @@ export function buildDocument(parsed) {
         // changes what the checks say: a `stroke="inherit"` is reported as a colour name, with advice to
         // write the keyword as hex; and on a box whose fill belongs to a semantic triple, the pairing arm
         // quotes "inherit" as the stroke to replace rather than the `<g stroke="#ec4899">` value in force.
-        fill: inheritedPaint(el.attrs.fill, ctx.inherited.fill),
-        stroke: inheritedPaint(el.attrs.stroke, ctx.inherited.stroke),
+        // matplotlib writes paint in the style attribute (style="fill: #ffffff;
+        // stroke: #4f7cff"); reading the attribute map alone sees null/null, and
+        // an unpainted closed path is then classified as a connector whose walls
+        // run through the labels it frames. Style declarations join the chain
+        // with the same nearest-wins priority as attributes.
+        fill: stylePaint(el, 'fill', ctx.inherited.fill),
+        stroke: stylePaint(el, 'stroke', ctx.inherited.stroke),
       },
     };
   };
@@ -640,7 +660,11 @@ export function buildDocument(parsed) {
       const fontSize = ctx.inherited.fontSize ?? 12;
       const x = num(A.x) + ctx.dx;
       const y = num(A.y) + ctx.dy;
-      const textAnchor = ctx.inherited.textAnchor ?? 'start';
+      // matplotlib writes text-anchor inside the style attribute; reading the
+      // attribute map alone never sees it and every such text measures as
+      // start-anchored — the centre check then blames a centred title.
+      const styleAnchor = el.attrs.style?.match(/(?:^|;)\s*text-anchor\s*:\s*([a-z]+)/i)?.[1];
+      const textAnchor = styleAnchor ?? ctx.inherited.textAnchor ?? 'start';
       if (A['font-size'] === undefined && ctx.inherited.fontSize === undefined) {
         note('missing-font-size', '<text> has no font-size and inherits none; assuming 12px', el);
       }

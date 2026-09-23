@@ -41,5 +41,54 @@ export const ALLOWED_COLORS = new Set([
   '#ffffff',
 ]);
 
+// ─── USER CUSTOMIZATION (top-20 palette, user-selected strictness) ───
+// The 20 most-used colors across the ~/documents SVG corpus (GitHub-dark +
+// Material house style), normalized to 6-digit lowercase hex. This REPLACES
+// the bybit house palette as the allowed set. Comparison is numeric, so
+// #abc == #aabbcc and rgb()/rgba() alpha is ignored (alpha composites against
+// the embedding page, which this file cannot see).
+export const USER_COLORS = new Set([
+  '#546e7a', '#8b949e', '#37474f', '#3fb950', '#ffffff',
+  '#78909c', '#58a6ff', '#263238', '#f85149', '#e6edf3',
+  '#161b22', '#555555', '#1976d2', '#30363d', '#bc8cff',
+  '#0d47a1', '#8892aa', '#888888', '#e3f2fd', '#1565c0',
+  // 21st (user-approved pending): the resume diagrams' 4-colour card scheme is
+  // blue/purple/cyan/green and no teal existed in the top-20 — card 3 has no
+  // distinct neighbour otherwise.
+  '#22d3ee',
+]);
+// CSS custom properties (var(--accent), …) resolve in the embedding HTML page,
+// not inside the SVG file — the linter cannot judge them, so it doesn't.
+const CSS_VARIABLE = /^var\(/i;
+const HEX3 = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i;
+const HEX6 = /^#[0-9a-f]{6}$/i;
+const RGB = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i;
+// CSS colour names that appear in the corpus; compared numerically like the rest.
+const CSS_NAMES = {
+  white: '#ffffff', black: '#000000', red: '#ff0000', lime: '#00ff00',
+  blue: '#0000ff', yellow: '#ffff00', cyan: '#00ffff', aqua: '#00ffff',
+  magenta: '#ff00ff', fuchsia: '#ff00ff', silver: '#c0c0c0', gray: '#808080',
+  grey: '#808080', maroon: '#800000', olive: '#808000', green: '#008000',
+  purple: '#800080', teal: '#008080', navy: '#000080', orange: '#ffa500',
+};
+const toHex = (v) => {
+  const s = String(v).trim().toLowerCase();
+  let m;
+  if ((m = s.match(HEX3))) return '#' + m[1] + m[1] + m[2] + m[2] + m[3] + m[3];
+  if (HEX6.test(s)) return s;
+  if (CSS_NAMES[s]) return CSS_NAMES[s];
+  if ((m = s.match(RGB))) {
+    return '#' + m.slice(1).map((n) => (+n).toString(16).padStart(2, '0')).join('');
+  }
+  return null;
+};
+export const isAllowedColor = (value) => {
+  if (CSS_VARIABLE.test(value)) return true;
+  // bybit ALLOWED_COLORS deliberately NOT consulted — the user's top-20 set
+  // replaces the house palette (user request).
+  const hex = toHex(value);
+  return hex !== null && USER_COLORS.has(hex);
+};
+
 export const semanticByFill = (hex) => SEMANTIC.find((s) => s.fill === hex);
 export const semanticByStroke = (hex) => SEMANTIC.find((s) => s.stroke === hex);

@@ -4,8 +4,7 @@ import { bboxInsets } from '../geometry.mjs';
 
 const ID = 'viewbox-clipping';
 
-// SKILL.md "viewBox margins" recommends 20–25px; item 17 of the checklist fixes 25.
-// Implemented as a range so both requirements are met: <20 is an error, >25 is a warning.
+// ── USER CUSTOMIZATION: restored to the bybit band 20–25px (user request).
 const MARGIN_MIN = 20;
 const MARGIN_MAX = 25;
 const SYMMETRY_TOLERANCE = 5;
@@ -31,7 +30,7 @@ export const viewboxClipping = {
       out.push(error({
         check: ID, code: 'missing-width-attribute', ...at,
         message: 'The <svg> element has no width attribute',
-        repair: { attribute: 'width', actual: 'absent', expected: String(doc.viewBox.width), hint: 'SKILL.md requires an explicit display width' },
+        repair: { attribute: 'width', actual: 'absent', expected: String(doc.viewBox.width), hint: 'an explicit display width is required (user-restored)' },
       }));
     }
 

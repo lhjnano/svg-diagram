@@ -1,5 +1,5 @@
 ---
-name: svg-diagram
+name: svg-lint
 description: SVG diagramming conventions blending a technical look with CJK-friendly typography. Use when creating flowcharts, architecture diagrams, and similar SVG figures. For one-shot generation, prefer invoking it from a subagent so the main context does not have to carry this skill plus the SVG XML; for multi-round tweaking, use it directly in the main context.
 ---
 
@@ -94,7 +94,7 @@ viewBox height = bottom y of content + margin
 ```
 
 ### Box layout
-- Boxes in the same row differ in size by ≤60px; text is centered (`text-anchor="middle"`)
+- Boxes in the same row differ in size by ≤60px; box text is **left-aligned** (`text-anchor="start"`) with an 8–24px inset from the box's left edge (centered `middle` is also accepted)
 - Boxes in the same column share a center line
 - An outer box fully encloses the inner boxes: `outer size = content size + padding × 2`
 
@@ -105,11 +105,11 @@ Used to group related boxes together (e.g. "Server", "Client", "Employee instanc
 **Style consistency**: within one diagram, every dashed grouping box must share these attributes:
 - `stroke-dasharray` (recommended `6,4`)
 - `rx` (corner radius, recommended 8–12)
-- `fill` (recommended `#f8fafc` or `none`)
+- `fill` (recommended `none` or `#161b22`)
 - Inner padding (recommended 15–20px)
 - Title font size (recommended 11px, to distinguish it from the 12px box body text)
 
-**Title placement**: put the group title inside the top-left corner of the box (`x = box x + 10, y = box y + 14`) using the secondary text color `#64748b`.
+**Title placement**: put the group title inside the top-left corner of the box (`x = box x + 10, y = box y + 14`) using the secondary text color `#78909c`.
 
 **Vertical-centering trap**: compute the group box's vertical position from the combined height of **title + inner content**, not from the box alone. With a title, the top of the box is occupied for roughly 20–25px, and inner boxes start below it:
 
@@ -117,8 +117,8 @@ Used to group related boxes together (e.g. "Server", "Client", "Employee instanc
 <!-- ✅ Group box: title + content laid out as a whole -->
 <!-- box top y=100, title takes 20px, inner boxes start at y=125 -->
 <rect x="50" y="100" width="200" height="120" rx="10"
-      stroke="#94a3b8" stroke-dasharray="6,4" fill="#f8fafc"/>
-<text x="60" y="114" font-size="11" fill="#64748b">Server</text>
+      stroke="#8b949e" stroke-dasharray="6,4" fill="none"/>
+<text x="60" y="114" font-size="11" fill="#78909c">Server</text>
 <!-- inner boxes -->
 <rect x="65" y="125" width="170" height="36" rx="6" .../>
 <rect x="65" y="170" width="170" height="36" rx="6" .../>
@@ -132,12 +132,12 @@ Derive box height from the font size so there is enough inner padding:
 | Content | Height formula | Example (12px font) |
 |---------|----------------|---------------------|
 | One line | font-size × 3 | 36px |
-| Two lines | font-size × 3 + line height | 36 + 18 = 54px |
-| Multiple lines | font-size × 3 + (lines - 1) × line height | +18px per extra line |
+| Two lines | font-size × 3 + line height | 36 + 15.6 = 51.6px |
+| Multiple lines | font-size × 3 + (lines - 1) × line height | +15.6px per extra line |
 
 **Where the formula comes from**: `font-size × 3 = top padding (≈font-size) + glyph height (≈font-size) + bottom padding (≈font-size)`. Scale the same ratio for non-standard font sizes.
 
-**Recommended line height**: font-size × 1.5 (e.g. 18px for a 12px font)
+**Line height in the box formula**: font-size × 1.3 (e.g. 15.6px for a 12px font). **Baseline gap between lines**: font-size × 1.5.
 
 ### Vertically centering text in a box (baseline positioning)
 
@@ -275,7 +275,7 @@ Keep detour paths at least 20px outside the obstacle's boundary:
 ```xml
 <!-- Gateway right edge=620, detour path runs at x=650 -->
 <path d="M600,313 Q 650,313 650,400 Q 650,640 635,685"
-      fill="none" stroke="#a855f7" stroke-dasharray="6,4" marker-end="url(#arrow)"/>
+      fill="none" stroke="#bc8cff" stroke-dasharray="6,4" marker-end="url(#arrow)"/>
 ```
 
 ### Block spacing (**single global standard**)
@@ -289,19 +289,31 @@ Breakdown: 5px start clearance + 11px end clearance and arrowhead extension + �
 
 > This is the only block-spacing standard in this document; both "No overlapping elements" and the verification checklist refer back to it.
 
+### Vertical rhythm (labels, headers, boxes)
+
+Three rules the linter enforces (`box-clearance`, `text-clearance`, `padding-balance`):
+
+1. **A label floating above or below a box** — horizontally overlapping its span — keeps **≥15px** of vertical breathing room from the box edge. A header parked 11px over a card reads as glued to it.
+2. **Stacked text rows** (title over subtitle, subtitle over section headers) keep **≥15px** between the upper row's bottom and the lower row's top. Titles and subtitles centred on the **content centre** (`box-clearance` and `text-clearance` measure the rendered bbox, not the intent).
+3. **Padding inside a box is balanced**: the gap above the first line and below the last line differ by **≤20px**. A card with 24px of headroom and 60px below its last bullet looks unfinished — shrink the box to hug its content or redistribute the lines.
+
+A horizontal connector between two side-by-side boxes leaves at the **vertical centre** of the boxes it joins, not wherever is convenient.
+
+A box's header is **text** — do not attach decorative bars or strips along a box edge. A strip disconnected from its label reads as a stray line, not as a header.
+
 ### SVG paint order (z-order)
 
 SVG has no z-index — **elements painted later sit on top**. Order them like this:
 
 ```xml
 <!-- 1. Bottom layer: background boxes (dashed grouping boxes, swimlanes) -->
-<rect ... stroke-dasharray="6,4" fill="#f8fafc"/>
+<rect ... stroke-dasharray="6,4" fill="none"/>
 
 <!-- 2. Middle layer: connectors and arrows -->
 <path d="..." marker-end="url(#arrow)"/>
 
 <!-- 3. Top layer: boxes and text -->
-<rect ... fill="#dbeafe"/>
+<rect ... fill="#e3f2fd"/>
 <text ...>Label</text>
 ```
 
@@ -381,15 +393,15 @@ A label describing an arc or curve must not sit on the path itself (the line wou
 
 ### Fonts (required)
 
-**Every SVG must declare a CJK-capable font stack in `<style>`** — this is non-negotiable:
+**Every SVG must declare a Hangul-capable font stack in `<style>`** — this is non-negotiable:
 
 ```xml
 <style>
-  text { font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', system-ui, sans-serif; }
+  text { font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif; }
 </style>
 ```
 
-Fallback order: macOS (PingFang SC) → Windows (Microsoft YaHei) → Linux (Noto Sans CJK SC) → system default. **`Noto Sans CJK SC` must be kept**, otherwise server-side rendering on Linux falls back to a font with no CJK coverage.
+**`Noto Sans KR` is the primary font** — the one Hangul face available across macOS, Windows and Linux, and the font matplotlib exports are laid out under, so metrics stay consistent wherever the file renders. Apple SD Gothic Neo (macOS) and Malgun Gothic (Windows) stay in the stack as fallbacks for machines without it. **Do not reorder the stack** — a machine with the first font must resolve every other font the same way the linter expects.
 
 | Element | Size |
 |---------|------|
@@ -401,17 +413,20 @@ Vertical text: `<text writing-mode="tb">vertical text</text>`
 
 ### Colors
 
-**Base colors**: primary text `#1e293b`, secondary text `#64748b`, muted text / arrows `#94a3b8`
+The house palette is exactly 21 colors (the most-used colors of this document corpus). Any `fill`/`stroke` outside it fails `palette-conformance`. `var(--*)` tokens are also accepted — they resolve in the embedding page.
 
-**Semantic colors**:
+| Group | Colors | Typical use |
+|-------|--------|-------------|
+| Dark neutrals | `#161b22` `#263238` `#30363d` `#37474f` | box fills, dark canvas |
+| Mid neutrals | `#546e7a` `#78909c` `#8892aa` `#8b949e` | strokes, structure, arrows |
+| Greys | `#555555` `#888888` | secondary text |
+| Light fills | `#e6edf3` `#e3f2fd` `#ffffff` | light boxes, canvas rect, text on dark |
+| Blues | `#1976d2` `#0d47a1` `#1565c0` `#58a6ff` | primary flow, links, emphasis |
+| Purple | `#bc8cff` | AI / special |
+| Cyan | `#22d3ee` | tertiary flow / verification (distinct from blue and green) |
+| Status | `#3fb950` (ok) `#f85149` (fail) | success / error states |
 
-| Meaning | Fill | Stroke | Text |
-|---------|------|--------|------|
-| Input / primary | #dbeafe | #3b82f6 | #1e40af |
-| Processing / in progress | #fef3c7 | #f59e0b | #b45309 |
-| Data / output | #d1fae5 | #22c55e | #166534 |
-| AI / analysis | #f3e8ff | #a855f7 | #6b21a8 |
-| Sensitive / warning | #fce7f3 | #ec4899 | #9d174d |
+Notation is normalized before checking: `#abc` equals `#aabbcc`, `rgb()`/`rgba()` are compared ignoring alpha, and basic CSS colour names map to their hex. Undeclared `fill`/`stroke` (no attribute anywhere) are skipped — the page's CSS may own them.
 
 ## Arrowhead definitions
 
@@ -421,23 +436,20 @@ Use a notched arrowhead rather than a plain triangle — it reads better:
 <defs>
   <!-- Default gray arrow (markerUnits="userSpaceOnUse" is mandatory) -->
   <marker id="arrow" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto" markerUnits="userSpaceOnUse">
-    <path d="M0,0 L8,4 L0,8 L2,4 z" fill="#64748b"/>
+    <path d="M0,0 L8,4 L0,8 L2,4 z" fill="#8b949e"/>
   </marker>
-  <!-- Semantic-color arrows (matching the box stroke colors) -->
+  <!-- Palette-color arrows (matching the house palette) -->
   <marker id="arrow-blue" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto" markerUnits="userSpaceOnUse">
-    <path d="M0,0 L8,4 L0,8 L2,4 z" fill="#3b82f6"/>
-  </marker>
-  <marker id="arrow-orange" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto" markerUnits="userSpaceOnUse">
-    <path d="M0,0 L8,4 L0,8 L2,4 z" fill="#f59e0b"/>
+    <path d="M0,0 L8,4 L0,8 L2,4 z" fill="#58a6ff"/>
   </marker>
   <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto" markerUnits="userSpaceOnUse">
-    <path d="M0,0 L8,4 L0,8 L2,4 z" fill="#22c55e"/>
+    <path d="M0,0 L8,4 L0,8 L2,4 z" fill="#3fb950"/>
   </marker>
   <marker id="arrow-purple" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto" markerUnits="userSpaceOnUse">
-    <path d="M0,0 L8,4 L0,8 L2,4 z" fill="#a855f7"/>
+    <path d="M0,0 L8,4 L0,8 L2,4 z" fill="#bc8cff"/>
   </marker>
   <marker id="arrow-red" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto" markerUnits="userSpaceOnUse">
-    <path d="M0,0 L8,4 L0,8 L2,4 z" fill="#ef4444"/>
+    <path d="M0,0 L8,4 L0,8 L2,4 z" fill="#f85149"/>
   </marker>
 </defs>
 ```
@@ -446,12 +458,11 @@ Use a notched arrowhead rather than a plain triangle — it reads better:
 
 | ID | Color | Use |
 |----|-------|-----|
-| `arrow` | #64748b | Default / neutral connection |
-| `arrow-blue` | #3b82f6 | Input / primary flow |
-| `arrow-orange` | #f59e0b | Processing / in progress |
-| `arrow-green` | #22c55e | Data / output / success |
-| `arrow-purple` | #a855f7 | AI / analysis / special |
-| `arrow-red` | #ef4444 | Warning / dangerous operation |
+| `arrow` | #8b949e | Default / neutral connection |
+| `arrow-blue` | #58a6ff | Input / primary flow |
+| `arrow-green` | #3fb950 | Data / output / success |
+| `arrow-purple` | #bc8cff | AI / analysis / special | |
+| `arrow-red` | #f85149 | Warning / dangerous operation |
 
 **Key parameters**:
 - `orient="auto"` rotates the arrowhead to follow the path direction
@@ -467,7 +478,7 @@ Use a notched arrowhead rather than a plain triangle — it reads better:
 <!-- Large arrow for thick lines (1.5×): tip extends 12-3=9px -->
 <marker id="arrow-red-lg" markerWidth="12" markerHeight="12" refX="3" refY="6"
         orient="auto" markerUnits="userSpaceOnUse">
-  <path d="M0,0 L12,6 L0,12 L3,6 z" fill="#ef4444"/>
+  <path d="M0,0 L12,6 L0,12 L3,6 z" fill="#f85149"/>
 </marker>
 ```
 
@@ -536,10 +547,16 @@ svg += f'<text>{svg_escape(team_name)}</text>'
 - [ ] Markers declare `markerUnits="userSpaceOnUse"`
 - [ ] Thick lines (stroke-width > 1.5) use the enlarged marker
 - [ ] Connectors use C/Q curves, no right angles
-- [ ] Labels centered (`text-anchor="middle"`)
+- [ ] Labels left-aligned with an 8–24px inset (or exactly centered)
 - [ ] Detour paths stay outside obstacles
 - [ ] Block spacing ≥25px (25–30px recommended, see "Block spacing")
 - [ ] Title centered, boxes in a row similar in size
+- [ ] Title and subtitle centered on the content centre, not the viewBox
+- [ ] Labels above/below boxes keep ≥15px vertical breathing room (`box-clearance`)
+- [ ] Stacked text rows (title/subtitle/headers) keep ≥15px apart (`text-clearance`)
+- [ ] Box padding balanced: top/bottom gaps inside a box differ ≤20px (`padding-balance`)
+- [ ] Horizontal connectors leave at the vertical centre of the boxes they join
+- [ ] No decorative bars/strips attached to box edges — headers are text
 - [ ] `width` attribute present, viewBox matches the content
 - [ ] Box heights sufficient (one line ≥ font-size × 3)
 - [ ] Top and bottom viewBox margins comparable (20–25px, measured from the top of the title)
@@ -551,6 +568,14 @@ svg += f'<text>{svg_escape(team_name)}</text>'
 - [ ] No large blank regions (spacing within 30px, viewBox hugs the content)
 
 ## Editing workflow
+
+### Before anything: matplotlib exports
+
+Figures exported from matplotlib carry `rotate(-0)` on every text and put font/paint in `style=` attributes — the linter models both. Three rules for the export source, so the SVG matches this skill:
+
+- `plt.rcParams['font.family'] = 'Noto Sans KR'` — the layout metrics then match the stack's primary font, and text does not overflow its boxes under a fallback font.
+- Do **not** pin widths with `textLength` after export: the linter's width tables estimate within 10–20% of any real font, and a pinned length forces the renderer to absorb that whole error as stretched glyphs or gaping letter-spacing.
+- `svg.fonttype` stays `'none'` (text stays text, lintable); `'path'` makes pixel-perfect files the linter can no longer read.
 
 ### 1. Collect: gather the full set before touching anything
 
@@ -568,7 +593,7 @@ Once all edits are done, print the change list first, then show the final SVG:
 ```
 Change list:
 1. Title spacing 20px → 30px
-2. Box A fill #dbeafe → #f3e8ff
+2. Box A fill #e3f2fd → #e6edf3
 3. Connector L1 path adjusted (routes around the new box)
 ```
 
