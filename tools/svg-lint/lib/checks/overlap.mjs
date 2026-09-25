@@ -3,24 +3,21 @@
 // The three thresholds are distinct; do not merge them: text-to-line 10px, curve label 15px,
 // detour from obstacle 20px.
 import { error, warning } from '../report.mjs';
+import { cfg } from '../config.mjs';
 import { panelRects } from '../panels.mjs';
 import {
   bboxIntersects, bboxToPolylineDistance, pointToBBoxDistance, pointInBBox, flattenPath,
 } from '../geometry.mjs';
 
 const ID = 'overlap';
-const TEXT_LINE_CLEARANCE = 10;
-const CURVE_LABEL_CLEARANCE = 15;
-const DETOUR_CLEARANCE = 20;
 
 // A connector that terminates near a box is connecting that box, not detouring past it —
 // so that box is excluded from the detour clearance check. The radius is set to the same
-// value as DETOUR_CLEARANCE: in hand-drawn diagrams connector endpoints often leave a few
+// value as cfg.clearance.detour: in hand-drawn diagrams connector endpoints often leave a few
 // pixels of clearance from the box edge (house style arrow clearance is 5–11px), and within
 // 20px the distance cannot be a "detour past" distance. A smaller radius would cause a
 // normal connector with a clearance of ten-odd pixels to be flagged as "too close to the box
 // it connects to" — a false positive that would appear in every diagram.
-const ENDPOINT_RADIUS = DETOUR_CLEARANCE;
 
 // bboxToPolylineDistance counts tangency as 0, so a connector whose y equals a label's bbox top or
 // bottom edge measures as sitting on the label. textBBox puts minY at `y - ASCENT_RATIO × font-size`,
@@ -162,8 +159,8 @@ function subpathTraces(path) {
 const endsInside = (points, rect) => pointInBBox(points[0], rect.bbox)
   || pointInBBox(points.at(-1), rect.bbox);
 
-const endsNear = (points, rect) => pointToBBoxDistance(points[0], rect.bbox) <= ENDPOINT_RADIUS
-  || pointToBBoxDistance(points.at(-1), rect.bbox) <= ENDPOINT_RADIUS;
+const endsNear = (points, rect) => pointToBBoxDistance(points[0], rect.bbox) <= cfg.clearance.detour
+  || pointToBBoxDistance(points.at(-1), rect.bbox) <= cfg.clearance.detour;
 
 // Box-like path: closed, actually filled, and substantial in both dimensions.
 // Arrowheads are closed and filled but tiny (the 16px floor excludes them);
@@ -417,7 +414,7 @@ export const overlap = {
           // Measured separately from `distance` so that the number clearance findings quote stays
           // exact; see withoutEdges for why the two questions get different boxes.
           const touching = bboxToPolylineDistance(withoutEdges(t.bbox), trace.points) === 0;
-          const minimum = trace.curved ? CURVE_LABEL_CLEARANCE : TEXT_LINE_CLEARANCE;
+          const minimum = trace.curved ? cfg.clearance.curveLabel : cfg.clearance.textLine;
           // Sitting on a connector outranks all clearance-deficiency findings; it is given a score
           // that no shortfall can beat.
           const shortfall = touching ? Infinity : minimum - distance;
@@ -457,7 +454,7 @@ export const overlap = {
         // that just grazes the wall by one stroke-width but presses directly against the label
         // to be skipped entirely, a silent false negative.
         if (t.container && !runs.some((r) => entersBox(r.points, t.container))) continue;
-        const minimum = curved ? CURVE_LABEL_CLEARANCE : TEXT_LINE_CLEARANCE;
+        const minimum = curved ? cfg.clearance.curveLabel : cfg.clearance.textLine;
         if (distance < minimum) {
           out.push(warning({
             check: ID, code: curved ? 'curve-label-clearance' : 'text-line-clearance', ...at,
@@ -497,12 +494,12 @@ export const overlap = {
               message: 'Connector passes through a box it neither starts nor ends at',
               repair: { hint: 'route around it with a C/Q curve, keeping 20px outside the boundary' },
             }));
-          } else if (distance < DETOUR_CLEARANCE) {
+          } else if (distance < cfg.clearance.detour) {
             if (endsNear(points, rect)) continue;
             out.push(warning({
               check: ID, code: 'detour-too-close', ...at,
               message: `Connector passes ${round(distance)}px from an unrelated box`,
-              repair: { actual: String(round(distance)), expected: `≥${DETOUR_CLEARANCE}`, hint: 'detour paths stay at least 20px outside the obstacle boundary' },
+              repair: { actual: String(round(distance)), expected: `≥${cfg.clearance.detour}`, hint: 'detour paths stay at least 20px outside the obstacle boundary' },
             }));
           }
         }

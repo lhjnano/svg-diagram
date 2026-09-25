@@ -7,10 +7,8 @@ import { horizontalGap, verticalGap, bboxUnion } from '../geometry.mjs';
 import { panelRects, enclosingContainers } from '../panels.mjs';
 
 const ID = 'block-spacing';
-// ── USER CUSTOMIZATION: restored to the bybit band 25–30px (user request).
-const MIN_GAP = 25;
-const MAX_GAP = 30;
-const RANGE = `${MIN_GAP}–${MAX_GAP}`;
+// Thresholds live in config.mjs (cfg.spacing, per axis).
+import { cfg } from '../config.mjs';
 const ROW_SIZE_TOLERANCE = 60;
 const ROW_OVERLAP_RATIO = 0.5;
 const TITLE_CENTER_TOLERANCE = 2;
@@ -167,6 +165,11 @@ export const blockSpacing = {
     // block's container. They are usually the same rect; they differ exactly where a wall lies
     // between, which is the case the two thresholds treat differently.
     const reportGap = (from, crowding, looseness, axis) => {
+      // Per-axis thresholds — a project's governance may want "20px
+      // horizontal, 15px vertical".
+      const minGap = axis === 'Vertical' ? cfg.spacing.minVertical : cfg.spacing.minHorizontal;
+      const maxGap = axis === 'Vertical' ? cfg.spacing.maxVertical : cfg.spacing.maxHorizontal;
+      const range = `${minGap}–${maxGap}`;
       const relevant = (hit) => hit
         && !(axis === 'Vertical' && separatedByRow(from, hit.other, rects));
       // Round first, then check — consistent with the spread approach below. If the raw
@@ -175,14 +178,14 @@ export const blockSpacing = {
       // the reported threshold, leaving the reader to suspect the tool computed incorrectly.
       // The trade-off is a tolerance of ≤0.05px.
       const tight = relevant(crowding) ? round(crowding.gap) : null;
-      if (tight !== null && tight < MIN_GAP) {
+      if (tight !== null && tight < minGap) {
         out.push(error({
           check: ID, code: 'spacing-too-small', line: from.line, column: from.column,
-          message: `${axis} gap to the next block is ${tight}px, below the ${MIN_GAP}px minimum`,
+          message: `${axis} gap to the next block is ${tight}px, below the ${minGap}px minimum`,
           repair: {
             actual: String(tight),
-            expected: RANGE,
-            hint: 'below 25px the arrowhead degenerates into a dot (needs 5 + 11 + ≥6px of visible line)',
+            expected: range,
+            hint: 'below ${minGap}px the arrowhead degenerates into a dot (needs 5 + 11 + ≥6px of visible line)',
           },
         }));
         // One pair, one finding: the same neighbour cannot be both too close and too far, and the
@@ -190,11 +193,11 @@ export const blockSpacing = {
         return;
       }
       const wide = relevant(looseness) ? round(looseness.gap) : null;
-      if (wide !== null && wide > MAX_GAP) {
+      if (wide !== null && wide > maxGap) {
         out.push(warning({
           check: ID, code: 'spacing-too-loose', line: from.line, column: from.column,
-          message: `${axis} gap to the next block is ${wide}px, above the ${MAX_GAP}px recommendation`,
-          repair: { actual: String(wide), expected: RANGE, hint: 'wide spacing makes the diagram feel loose and the connectors long' },
+          message: `${axis} gap to the next block is ${wide}px, above the ${maxGap}px recommendation`,
+          repair: { actual: String(wide), expected: range, hint: 'wide spacing makes the diagram feel loose and the connectors long' },
         }));
       }
     };

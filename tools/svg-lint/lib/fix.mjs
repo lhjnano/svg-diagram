@@ -5,19 +5,18 @@
 // nothing the second time.
 import { parseSvg } from './parse-svg.mjs';
 import { buildDocument } from './document.mjs';
-import { textBBox } from './text-metrics.mjs';
+import { cfg, canonicalFontStack } from './config.mjs';
 
-export const FONT_STACK = "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif";
+// Kept for API compatibility; the live stack comes from the config.
+export const FONT_STACK = () => canonicalFontStack();
 
 // Raw "&" that is not already part of an entity reference. CDATA sections are
 // not excluded: hand-written diagrams do not carry them, and the trade for a
 // regex this simple is recorded here rather than hidden.
 const RAW_AMPERSAND = /&(?!(?:amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g;
 
-// viewBox margin target for the recompute fix — the middle of the 20–25 band.
-const MARGIN = 22;
-const MARGIN_MIN = 20;
-const MARGIN_MAX = 25;
+// viewBox band from the config, read at fix time.
+const MARGIN = () => (cfg.viewBox.marginMin + cfg.viewBox.marginMax) / 2;
 
 const round1 = (v) => Number(v.toFixed(1));
 
@@ -76,21 +75,21 @@ export function fixSource(source) {
   const vbOrig = viewBoxOf(s);
   if (doc && doc.contentBBox && vbOrig && !doc.notes.some((n) => n.code === 'unsupported-transform')) {
     const b = doc.contentBBox;
-    const x = round1(b.minX - MARGIN);
-    const y = round1(b.minY - MARGIN);
-    const w = round1(b.maxX - b.minX + 2 * MARGIN);
-    const h = round1(b.maxY - b.minY + 2 * MARGIN);
+    const x = round1(b.minX - MARGIN());
+    const y = round1(b.minY - MARGIN());
+    const w = round1(b.maxX - b.minX + 2 * MARGIN());
+    const h = round1(b.maxY - b.minY + 2 * MARGIN());
     const differs = Math.abs(x - vbOrig.x) > 0.05 || Math.abs(y - vbOrig.y) > 0.05
       || Math.abs(w - vbOrig.w) > 0.05 || Math.abs(h - vbOrig.h) > 0.05;
-    const outOfBand = vbOrig.x + MARGIN_MIN > b.minX || b.minX - vbOrig.x > MARGIN_MAX
-      || vbOrig.y + MARGIN_MIN > b.minY || b.minY - vbOrig.y > MARGIN_MAX
-      || vbOrig.x + vbOrig.w - MARGIN_MIN < b.maxX || b.maxX - (vbOrig.x + vbOrig.w) > MARGIN_MAX
-      || vbOrig.y + vbOrig.h - MARGIN_MIN < b.maxY || b.maxY - (vbOrig.y + vbOrig.h) > MARGIN_MAX;
+    const outOfBand = vbOrig.x + cfg.viewBox.marginMin > b.minX || b.minX - vbOrig.x > cfg.viewBox.marginMax
+      || vbOrig.y + cfg.viewBox.marginMin > b.minY || b.minY - vbOrig.y > cfg.viewBox.marginMax
+      || vbOrig.x + vbOrig.w - cfg.viewBox.marginMin < b.maxX || b.maxX - (vbOrig.x + vbOrig.w) > cfg.viewBox.marginMax
+      || vbOrig.y + vbOrig.h - cfg.viewBox.marginMin < b.maxY || b.maxY - (vbOrig.y + vbOrig.h) > cfg.viewBox.marginMax;
     if (differs && outOfBand) {
       const newVB = `${x} ${y} ${w} ${h}`;
       s = s.replace(/(<svg\b[^>]*\bviewBox\s*=\s*)"[^"]*"/i, `$1"${newVB}"`);
       vbOrig.x = x; vbOrig.y = y; vbOrig.w = w; vbOrig.h = h; // the fixes below size from this
-      applied.push(`viewbox-clipping: recomputed viewBox to "${newVB}" (${MARGIN}px margins)`);
+      applied.push(`viewbox-clipping: recomputed viewBox to "${newVB}" (${MARGIN()}px margins)`);
       // A resized viewBox and a stale width disagree on the display size;
       // the house rule is width = viewBox width. Units are preserved: matplotlib
       // writes width="963pt", and 963pt ≠ 1007 user units.
@@ -102,7 +101,7 @@ export function fixSource(source) {
 
   // 3. width attribute — from the (possibly recomputed) viewBox.
   const svgOpen = s.match(/<svg\b[^>]*>/);
-  if (svgOpen && vbOrig && !/\bwidth\s*=/.test(svgOpen[0])) {
+    if (cfg.viewBox.widthRequired && svgOpen && vbOrig && !/\bwidth\s*=/.test(svgOpen[0])) {
     s = s.replace(svgOpen[0], svgOpen[0].replace(/<svg\b/, `<svg width="${vbOrig.w}"`));
     applied.push(`viewbox-clipping: added width="${vbOrig.w}"`);
   }
@@ -126,7 +125,7 @@ export function fixSource(source) {
     // Order matters as much as presence: the checker requires the primary
     // (Noto Sans KR) before the fallbacks, so a stack that merely contains
     // all three in the wrong order must be rewritten too.
-    const ORDER = ['noto sans kr', 'apple sd gothic neo', 'malgun gothic'];
+    const ORDER = cfg.font.stack.map((f) => f.toLowerCase());
     const compliant = (decl) => {
       const positions = ORDER.map((f) => decl.toLowerCase().indexOf(f));
       return positions.every((p) => p !== -1)
@@ -136,15 +135,17 @@ export function fixSource(source) {
     s = s.replace(/font-family\s*:\s*[^;"}]+/g, (decl) => {
       if (compliant(decl)) return decl;
       rewritten += 1;
-      return `font-family: ${FONT_STACK}`;
+      return `font-family: ${canonicalFontStack()}`;
     });
     if (rewritten > 0) applied.push(`font-stack: rewrote ${rewritten} font-family declaration(s) to the Hangul stack`);
     const styleDeclares = [...s.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)]
       .some((m) => /font-family\s*:/.test(m[1]));
-    if (!styleDeclares) {
+    // Only 'style' mode wants a <style> block inserted; an 'inline' project
+    // declares font-family on the <svg> element instead.
+    if (cfg.font.declaration === 'style' && !styleDeclares) {
       const open = s.match(/<svg\b[^>]*>/);
-      s = s.replace(open[0], `${open[0]}<style>text{font-family:${FONT_STACK};}</style>`);
-      applied.push('font-stack: inserted the Hangul font stack <style> rule');
+      s = s.replace(open[0], `${open[0]}<style>text{font-family:${canonicalFontStack()};}</style>`);
+      applied.push('font-stack: inserted the configured font stack <style> rule');
     }
   }
 

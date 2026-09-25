@@ -3,12 +3,8 @@ import { error, warning } from '../report.mjs';
 import { bboxInsets } from '../geometry.mjs';
 
 const ID = 'viewbox-clipping';
-
-// ── USER CUSTOMIZATION: restored to the bybit band 20–25px (user request).
-const MARGIN_MIN = 20;
-const MARGIN_MAX = 25;
-const SYMMETRY_TOLERANCE = 5;
-const RANGE = `${MARGIN_MIN}–${MARGIN_MAX}`;
+// Margins and the width requirement come from the config (cfg.viewBox).
+import { cfg } from '../config.mjs';
 
 export const viewboxClipping = {
   id: ID,
@@ -26,7 +22,7 @@ export const viewboxClipping = {
       return out;
     }
 
-    if (doc.widthAttr === null) {
+    if (cfg.viewBox.widthRequired && doc.widthAttr === null) {
       out.push(error({
         check: ID, code: 'missing-width-attribute', ...at,
         message: 'The <svg> element has no width attribute',
@@ -51,38 +47,38 @@ export const viewboxClipping = {
         out.push(error({
           check: ID, code: 'content-clipped', ...at,
           message: `Content overflows the viewBox on the ${side} by ${round(-value)}px`,
-          repair: { attribute: 'viewBox', actual: `${side} inset ${round(value)}`, expected: RANGE, hint: 'grow the viewBox or move the content inward' },
+          repair: { attribute: 'viewBox', actual: `${side} inset ${round(value)}`, expected: `${cfg.viewBox.marginMin}–${cfg.viewBox.marginMax}`, hint: 'grow the viewBox or move the content inward' },
         }));
-      } else if (value < MARGIN_MIN) {
+      } else if (value < cfg.viewBox.marginMin) {
         out.push(error({
           check: ID, code: 'margin-too-small', ...at,
-          message: `The ${side} viewBox margin is ${round(value)}px, below the ${MARGIN_MIN}px minimum`,
-          repair: { attribute: 'viewBox', actual: String(round(value)), expected: RANGE, hint: 'grow the viewBox on that side' },
+          message: `The ${side} viewBox margin is ${round(value)}px, below the ${cfg.viewBox.marginMin}px minimum`,
+          repair: { attribute: 'viewBox', actual: String(round(value)), expected: `${cfg.viewBox.marginMin}–${cfg.viewBox.marginMax}`, hint: 'grow the viewBox on that side' },
         }));
-      } else if (value > MARGIN_MAX) {
+      } else if (value > cfg.viewBox.marginMax) {
         out.push(warning({
           check: ID, code: 'margin-too-large', ...at,
-          message: `The ${side} viewBox margin is ${round(value)}px, above the ${MARGIN_MAX}px recommendation`,
-          repair: { attribute: 'viewBox', actual: String(round(value)), expected: RANGE, hint: 'shrink the viewBox so it hugs the content' },
+          message: `The ${side} viewBox margin is ${round(value)}px, above the ${cfg.viewBox.marginMax}px recommendation`,
+          repair: { attribute: 'viewBox', actual: String(round(value)), expected: `${cfg.viewBox.marginMin}–${cfg.viewBox.marginMax}`, hint: 'shrink the viewBox so it hugs the content' },
         }));
       }
     }
 
-    if (Math.abs(insets.top - insets.bottom) > SYMMETRY_TOLERANCE) {
+    if (Math.abs(insets.top - insets.bottom) > cfg.viewBox.symmetryTolerance) {
       out.push(warning({
         check: ID, code: 'vertical-margin-asymmetric', ...at,
-        message: `Top margin ${round(insets.top)}px and bottom margin ${round(insets.bottom)}px differ by more than ${SYMMETRY_TOLERANCE}px`,
-        repair: { actual: `${round(insets.top)} / ${round(insets.bottom)}`, expected: `within ${SYMMETRY_TOLERANCE}px`, hint: 'adjust the viewBox height, measuring the top margin from the title' },
+        message: `Top margin ${round(insets.top)}px and bottom margin ${round(insets.bottom)}px differ by more than ${cfg.viewBox.symmetryTolerance}px`,
+        repair: { actual: `${round(insets.top)} / ${round(insets.bottom)}`, expected: `within ${cfg.viewBox.symmetryTolerance}px`, hint: 'adjust the viewBox height, measuring the top margin from the title' },
       }));
     }
 
-    if (Math.abs(insets.left - insets.right) > SYMMETRY_TOLERANCE) {
+    if (Math.abs(insets.left - insets.right) > cfg.viewBox.symmetryTolerance) {
       out.push(warning({
         check: ID, code: 'horizontal-margin-asymmetric', ...at,
-        message: `Left margin ${round(insets.left)}px and right margin ${round(insets.right)}px differ by more than ${SYMMETRY_TOLERANCE}px`,
+        message: `Left margin ${round(insets.left)}px and right margin ${round(insets.right)}px differ by more than ${cfg.viewBox.symmetryTolerance}px`,
         repair: {
           actual: `${round(insets.left)} / ${round(insets.right)}`,
-          expected: `within ${SYMMETRY_TOLERANCE}px`,
+          expected: `within ${cfg.viewBox.symmetryTolerance}px`,
           hint: `wrap the content in <g transform="translate(${round((insets.right - insets.left) / 2)}, 0)">`,
         },
       }));

@@ -41,22 +41,10 @@ export const ALLOWED_COLORS = new Set([
   '#ffffff',
 ]);
 
-// ─── USER CUSTOMIZATION (top-20 palette, user-selected strictness) ───
-// The 20 most-used colors across the ~/documents SVG corpus (GitHub-dark +
-// Material house style), normalized to 6-digit lowercase hex. This REPLACES
-// the bybit house palette as the allowed set. Comparison is numeric, so
-// #abc == #aabbcc and rgb()/rgba() alpha is ignored (alpha composites against
-// the embedding page, which this file cannot see).
-export const USER_COLORS = new Set([
-  '#546e7a', '#8b949e', '#37474f', '#3fb950', '#ffffff',
-  '#78909c', '#58a6ff', '#263238', '#f85149', '#e6edf3',
-  '#161b22', '#555555', '#1976d2', '#30363d', '#bc8cff',
-  '#0d47a1', '#8892aa', '#888888', '#e3f2fd', '#1565c0',
-  // 21st (user-approved pending): the resume diagrams' 4-colour card scheme is
-  // blue/purple/cyan/green and no teal existed in the top-20 — card 3 has no
-  // distinct neighbour otherwise.
-  '#22d3ee',
-]);
+// The allowed colors live in config.mjs (cfg.palette.colors) and are
+// replaced wholesale by a project config.
+import { cfg } from './config.mjs';
+
 // CSS custom properties (var(--accent), …) resolve in the embedding HTML page,
 // not inside the SVG file — the linter cannot judge them, so it doesn't.
 const CSS_VARIABLE = /^var\(/i;
@@ -83,12 +71,10 @@ const toHex = (v) => {
   return null;
 };
 export const isAllowedColor = (value) => {
-  if (CSS_VARIABLE.test(value)) return true;
-  // bybit ALLOWED_COLORS deliberately NOT consulted — the user's top-20 set
-  // replaces the house palette (user request).
+  if (cfg.palette.allowCssVariables && CSS_VARIABLE.test(value)) return true;
   const hex = toHex(value);
-  return hex !== null && USER_COLORS.has(hex);
+  return hex !== null && cfg.palette.colors.includes(hex);
 };
 
-export const semanticByFill = (hex) => SEMANTIC.find((s) => s.fill === hex);
-export const semanticByStroke = (hex) => SEMANTIC.find((s) => s.stroke === hex);
+export const semanticByFill = (hex) => cfg.palette.semanticTriples.find((s) => s.fill === hex);
+export const semanticByStroke = (hex) => cfg.palette.semanticTriples.find((s) => s.stroke === hex);

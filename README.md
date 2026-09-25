@@ -176,6 +176,49 @@ The 15 checks cover XML escaping, viewBox clipping, the font stack, box height, 
 
 Exit codes, the `--json` shape, and what each check does and doesn't catch are in [tools/svg-lint/README.md](tools/svg-lint/README.md). SKILL.md carries a troubleshooting table for the symptoms that reach you before the linter does.
 
+## Configuration
+
+Every threshold the linter enforces is configurable per project. Drop a config file in the directory you lint from — `svg-lint.config.mjs`, `.svglintrc.mjs` or `svg-lint.config.json` (first match wins), or pass one explicitly with `--config`:
+
+```bash
+node tools/svg-lint/bin/svg-lint.mjs diagram.svg                    # defaults
+node tools/svg-lint/bin/svg-lint.mjs --config blog.config.mjs d.svg # explicit
+```
+
+```js
+// svg-lint.config.mjs — override only what differs; the rest keeps the defaults
+export default {
+  palette: {
+    colors: ['#fef3c7', '#fbbf24', '#92400e', '#ffffff', '#1f2937'], // replaces wholesale
+    semanticTriples: [],   // [] disables fill/stroke pairing
+    allowCssVariables: true,
+  },
+  font: {
+    stack: ['Pretendard', 'Noto Sans KR'],
+    declaration: 'inline', // 'inline': font-family on <svg> is enough, no <style> block
+  },
+  spacing: { minHorizontal: 20, minVertical: 15, maxHorizontal: 40, maxVertical: 40 },
+  viewBox: { marginMin: 15, marginMax: 30, symmetryTolerance: 5, widthRequired: false },
+  box: { heightFactor: 3, lineFactor: 1.3, lineHeightFactor: 1.5, minHeight: 65 },
+  clearance: { labelToBox: 15, textRows: 15, curveLabel: 15, textLine: 10, paddingImbalance: 20 },
+  vertical: { baselineTolerance: 1, centerTolerance: 1, blockTolerance: 1 },
+  labels: { leftInsetMin: 8, leftInsetMax: 24 },
+};
+```
+
+| Option | What it decides | Default |
+|---|---|---|
+| `palette.colors` | allowed fill/stroke colors (notation-normalized: `#abc` = `#aabbcc`, `rgb()` alpha ignored) | the 21-color house set |
+| `palette.semanticTriples` | fill/stroke/text pairing rule | the bybit five |
+| `font.stack` / `font.declaration` | required fonts, their order, and whether a `<style>` block is required (`'inline'` accepts the attribute on `<svg>`) | Korean stack / `'style'` |
+| `spacing.*` | block-to-block gap band, per axis | 25–30px both axes |
+| `viewBox.*` | margin band, symmetry tolerance, whether `width` is required | 20–25px, required |
+| `box.*` | height formula factors, tolerances, and an optional absolute `minHeight` (px) | 3× + 1.3×/line, none |
+| `clearance.*` | label↔box, text-row, curve, connector and padding-imbalance minimums | 15/15/15/10/20px |
+| `vertical.*` / `labels.*` | centring tolerances, left-inset band | 1px, 8–24px |
+
+`--fix` obeys the same config: it rewrites font stacks to the configured one, recomputes the viewBox to the configured margins, and only adds `width` when `viewBox.widthRequired` is true.
+
 ## Contributing
 
 This repository holds one skill, and the `SKILL.md` at the root is it.

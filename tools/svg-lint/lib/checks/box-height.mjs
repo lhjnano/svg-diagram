@@ -6,14 +6,7 @@ import { groupIntoLines } from '../text-metrics.mjs';
 import { panelRects } from '../panels.mjs';
 
 const ID = 'box-height';
-// ── USER CUSTOMIZATION: strict base (font×3, bybit) with the user's chosen
-// per-line factor of 1.3 (bybit uses 1.5). Line-spacing rule back to 1.5×
-// with the original 1px tolerance, box tolerance back to 0.5.
-const HEIGHT_FACTOR = 3;
-const BOX_LINE_HEIGHT_FACTOR = 1.3;
-const LINE_HEIGHT_FACTOR = 1.5;
-const HEIGHT_TOLERANCE = 0.5;
-const LINE_SPACING_TOLERANCE = 1;
+import { cfg } from '../config.mjs';
 const round = (v) => Number(v.toFixed(1));
 
 export const boxHeight = {
@@ -53,10 +46,15 @@ export const boxHeight = {
       // Rounded at assignment so the message, repair and comparison all carry
       // a paste-safe number — the 1.3 line factor otherwise leaks float noise
       // (13 × 1.3 = 16.900000000000002) into findings.
-      const lineHeight = round(fontSize * BOX_LINE_HEIGHT_FACTOR);
-      const required = round(fontSize * HEIGHT_FACTOR + (lines - 1) * lineHeight);
+      const lineHeight = round(fontSize * cfg.box.lineFactor);
+      // minHeight: an optional absolute floor from the config (e.g. 65 for a
+      // project whose governance sizes boxes in px, not in font multiples).
+      const required = round(Math.max(
+        fontSize * cfg.box.heightFactor + (lines - 1) * lineHeight,
+        cfg.box.minHeight ?? -Infinity,
+      ));
 
-      if (rect.height < required - HEIGHT_TOLERANCE) {
+      if (rect.height < required - cfg.box.heightTolerance) {
         out.push(error({
           check: ID, code: 'box-too-short', line: rect.line, column: rect.column,
           message: `Box is ${rect.height}px tall but ${lines} line(s) at ${fontSize}px need ${required}px`,
@@ -65,8 +63,8 @@ export const boxHeight = {
             actual: String(rect.height),
             expected: String(required),
             hint: lines > 1
-              ? `font-size × ${HEIGHT_FACTOR} + ${lines - 1} × ${lineHeight}px line height`
-              : `font-size × ${HEIGHT_FACTOR}`,
+              ? `font-size × ${cfg.box.heightFactor} + ${lines - 1} × ${lineHeight}px line height`
+              : `font-size × ${cfg.box.heightFactor}`,
           },
         }));
       }
@@ -84,15 +82,15 @@ export const boxHeight = {
         // spacing like 19.04px is accepted (≤0.05px of slack), but in return the message, repair,
         // and decision all use the same number.
         const gap = round(baselines[k].y - baselines[k - 1].y);
-        const rowHeight = round(baselines[k].fontSize * LINE_HEIGHT_FACTOR);
-        if (Math.abs(gap - rowHeight) > LINE_SPACING_TOLERANCE) {
+        const rowHeight = round(baselines[k].fontSize * cfg.box.lineHeightFactor);
+        if (Math.abs(gap - rowHeight) > cfg.box.lineSpacingTolerance) {
           out.push(warning({
             check: ID, code: 'line-height-off', line: rect.line, column: rect.column,
             message: `Baselines are ${gap}px apart; the recommended line height at ${baselines[k].fontSize}px is ${rowHeight}px`,
             // No attribute: the finding is about the relationship between two baselines, and
             // line/column points at the box, not at any individual <text>; including `y` would
             // suggest editing the box's y. Same reasoning as the two symmetry findings in viewbox-clipping.
-            repair: { actual: String(gap), expected: String(rowHeight), hint: `line height = font-size × ${LINE_HEIGHT_FACTOR}` },
+            repair: { actual: String(gap), expected: String(rowHeight), hint: `line height = font-size × ${cfg.box.lineHeightFactor}` },
           }));
         }
       }

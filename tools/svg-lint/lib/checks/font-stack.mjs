@@ -7,12 +7,10 @@ import { splitTop } from '../document.mjs';
 import { decodeEntities } from '../text-metrics.mjs';
 
 const ID = 'font-stack';
-// ── USER CUSTOMIZATION: Noto Sans KR is the primary font (user request) —
-// it is the one font available across macOS/Windows/Linux and matches the
-// matplotlib export font, so metrics stay consistent. Apple SD Gothic Neo and
-// Malgun Gothic remain required fallbacks for machines without it.
-const REQUIRED_STACK = ['Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic'];
-const CANONICAL = "'Noto Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif";
+// Required fonts and declaration mode come from the config; 'inline'
+// accepts a declaration on <svg> instead of a <style> block.
+import { cfg, canonicalFontStack } from '../config.mjs';
+const CANONICAL = () => canonicalFontStack();
 
 // CSS family matching is ASCII case-insensitive and must match the entire token. Using
 // indexOf on the raw string would be fooled by variants such as 'Microsoft YaHei UI'
@@ -52,8 +50,8 @@ const signature = (value) => familyTokens(value).join(',');
 
 function stackProblems(value) {
   const tokens = familyTokens(value);
-  const positions = REQUIRED_STACK.map((family) => tokens.indexOf(family.toLowerCase()));
-  const missing = REQUIRED_STACK.filter((_, i) => positions[i] === -1);
+  const positions = cfg.font.stack.map((family) => tokens.indexOf(family.toLowerCase()));
+  const missing = cfg.font.stack.filter((_, i) => positions[i] === -1);
   const present = positions.filter((p) => p !== -1);
   const outOfOrder = present.some((p, i) => i > 0 && p < present[i - 1]);
   return { missing, outOfOrder };
@@ -76,8 +74,8 @@ export const fontStack = {
           repair: {
             attribute: 'font-family',
             actual: String(value),
-            expected: CANONICAL,
-            hint: family === 'Noto Sans KR'
+            expected: CANONICAL(),
+            hint: family === cfg.font.stack[0]
               ? 'the primary font — without it the stack renders in whatever the OS picks, with different metrics'
               : 'the stack must keep platform fallbacks after Noto Sans KR',
           },
@@ -87,7 +85,7 @@ export const fontStack = {
         out.push(error({
           check: ID, code: 'font-stack-out-of-order', ...where,
           message: 'The font stack is not ordered Noto Sans KR → Apple SD Gothic Neo → Malgun Gothic',
-          repair: { attribute: 'font-family', actual: String(value), expected: CANONICAL, hint: null },
+          repair: { attribute: 'font-family', actual: String(value), expected: CANONICAL(), hint: null },
         }));
       }
     };
@@ -99,19 +97,30 @@ export const fontStack = {
     // says what actually needs to be done.
     const styleDeclaresStack = doc.styleFontFamily
       && !CSS_WIDE_KEYWORDS.has(doc.styleFontFamily.trim().toLowerCase());
-    if (!styleDeclaresStack) {
+    // declaration: 'inline' accepts a font-family declared on <svg> (or an
+    // ancestor <g>) that texts inherit — for pipelines that omit <style>.
+    const rootInline = cfg.font.declaration === 'inline'
+      ? doc.svg?.attrs?.['font-family'] ?? null
+      : null;
+    const inlineDeclared = cfg.font.declaration === 'inline'
+      && (rootInline !== null || doc.texts.some((t) => t.fontFamily !== null));
+    if (!styleDeclaresStack && !inlineDeclared) {
       out.push(error({
         check: ID, code: 'missing-font-stack', ...at,
         message: 'No <style> rule declares font-family for text',
         repair: {
           attribute: 'font-family',
           actual: doc.styleFontFamily ?? 'absent',
-          expected: CANONICAL,
-          hint: 'SKILL.md marks this non-negotiable',
+          expected: CANONICAL(),
+          hint: cfg.font.declaration === 'inline'
+            ? "declare font-family on the <svg> element, or set font.declaration: 'style' to require a <style> block"
+            : 'SKILL.md marks this non-negotiable',
         },
       }));
-    } else {
+    } else if (styleDeclaresStack) {
       report(doc.styleFontFamily, at);
+    } else if (rootInline !== null) {
+      report(rootInline, at);
     }
 
     // Effective values override the style rule, so they must be checked separately. Use

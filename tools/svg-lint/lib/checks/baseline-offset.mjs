@@ -5,18 +5,13 @@
 // confuse it with 0.75 (ascent, used for positioning from the top).
 import { error, warning } from '../report.mjs';
 import { panelRects } from '../panels.mjs';
+import { cfg } from '../config.mjs';
 import { BASELINE_CENTER_RATIO, groupIntoLines, sameLine } from '../text-metrics.mjs';
 
 const ID = 'baseline-offset';
-const BASELINE_TOLERANCE = 1; // restored (user request: flag anything beyond 1px)
-const CENTER_TOLERANCE = 1;
-// ── USER CUSTOMIZATION: measured left-inset band for start-anchored labels.
-const LEFT_INSET_MIN = 8;
-const LEFT_INSET_MAX = 24;
 // The block midpoint has a slightly looser tolerance than a single baseline: in hand-drawn
 // diagrams two baselines are often rounded to integers (62.2/80.2 written as 61/79), so the
 // midpoint is naturally off by about 1.2px. A 6px overall shift is still caught.
-const BLOCK_TOLERANCE = 1; // was 1.5 (bybit) — user request: 1px strictness
 const round = (v) => Number(v.toFixed(1));
 
 export const baselineOffset = {
@@ -46,7 +41,7 @@ export const baselineOffset = {
         // positive.
         for (const t of lines[0].texts) {
           const expected = rect.y + rect.height / 2 + t.fontSize * BASELINE_CENTER_RATIO;
-          if (Math.abs(t.y - expected) > BASELINE_TOLERANCE) {
+          if (Math.abs(t.y - expected) > cfg.vertical.baselineTolerance) {
             out.push(warning({
               check: ID, code: 'baseline-off-center', line: t.line, column: t.column,
               message: `Baseline is at y=${t.y}; optical centring wants y=${round(expected)}`,
@@ -75,7 +70,7 @@ export const baselineOffset = {
       const blockFontSize = (lines[0].fontSize + last.fontSize) / 2;
       const mid = (lines[0].y + last.y) / 2;
       const wanted = rect.y + rect.height / 2 + blockFontSize * BASELINE_CENTER_RATIO;
-      if (Math.abs(mid - wanted) > BLOCK_TOLERANCE) {
+      if (Math.abs(mid - wanted) > cfg.vertical.blockTolerance) {
         // The shift is given directly: actual / expected are the **midpoint**, and what
         // needs to change is the y of every line; requiring the reader to subtract the two
         // midpoints pushes that arithmetic step onto them, and the sign is exactly the part
@@ -104,11 +99,11 @@ export const baselineOffset = {
       // band instead of being an error; middle keeps the centring rule.
       if (t.textAnchor === 'start') {
         const inset = t.x - t.container.x;
-        if (inset < LEFT_INSET_MIN || inset > LEFT_INSET_MAX) {
+        if (inset < cfg.labels.leftInsetMin || inset > cfg.labels.leftInsetMax) {
           out.push(warning({
             check: ID, code: 'label-left-inset-out-of-band', line: t.line, column: t.column,
-            message: `Left-aligned label sits ${round(inset)}px from its box's left edge; the band is ${LEFT_INSET_MIN}–${LEFT_INSET_MAX}px`,
-            repair: { attribute: 'x', actual: String(round(inset)), expected: `${LEFT_INSET_MIN}–${LEFT_INSET_MAX}`, hint: 'left-aligned labels keep a consistent inset' },
+            message: `Left-aligned label sits ${round(inset)}px from its box's left edge; the band is ${cfg.labels.leftInsetMin}–${cfg.labels.leftInsetMax}px`,
+            repair: { attribute: 'x', actual: String(round(inset)), expected: `${cfg.labels.leftInsetMin}–${cfg.labels.leftInsetMax}`, hint: 'left-aligned labels keep a consistent inset' },
           }));
         }
         continue;
@@ -128,7 +123,7 @@ export const baselineOffset = {
         continue;
       }
       const centerX = t.container.x + t.container.width / 2;
-      if (Math.abs(t.x - centerX) > CENTER_TOLERANCE) {
+      if (Math.abs(t.x - centerX) > cfg.vertical.centerTolerance) {
         out.push(warning({
           check: ID, code: 'label-off-box-center', line: t.line, column: t.column,
           message: `Middle-anchored label sits at x=${t.x} but its box centre is ${round(centerX)}`,

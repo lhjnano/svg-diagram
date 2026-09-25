@@ -3,8 +3,10 @@
 // svg-lint — house-style checker for hand-written SVG diagrams.
 // Zero dependencies on purpose: a bare clone must be able to run this.
 import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync as _rfs, existsSync } from 'node:fs';
 import { lintSource } from '../lib/lint.mjs';
 import { fixSource } from '../lib/fix.mjs';
+import { setConfig } from '../lib/config.mjs';
 import { summarize } from '../lib/report.mjs';
 import { formatText } from '../lib/format-text.mjs';
 import { formatJson } from '../lib/format-json.mjs';
@@ -12,6 +14,7 @@ import { formatJson } from '../lib/format-json.mjs';
 const USAGE = `Usage: svg-lint [options] <file.svg...>
 
 Options:
+  --config <p>  load a config file (default: svg-lint.config.mjs in CWD)
   --fix         apply the mechanically-safe fixes in place (writes <file>.bak)
   --json        emit machine-readable JSON instead of text
   --quiet       report errors only, suppress warnings
@@ -26,9 +29,15 @@ Exit codes:
 // Not exported: the CLI tests drive this through a spawned process, which is the contract that
 // matters, so an export would widen the surface without adding a caller.
 function parseArgv(argv) {
-  const options = { fix: false, json: false, quiet: false, files: [] };
-  for (const arg of argv) {
-    if (arg === '--fix') options.fix = true;
+  const options = { fix: false, json: false, quiet: false, config: null, files: [] };
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--config') {
+      options.config = argv[i + 1];
+      if (!options.config) return { unknownOption: '--config requires a path', options };
+      i += 1;
+    } else if (arg.startsWith('--config=')) options.config = arg.slice('--config='.length);
+    else if (arg === '--fix') options.fix = true;
     else if (arg === '--json') options.json = true;
     else if (arg === '--quiet') options.quiet = true;
     else if (arg === '-h' || arg === '--help') return { help: true, options };
@@ -38,7 +47,25 @@ function parseArgv(argv) {
   return { options };
 }
 
-function main(argv) {
+// Config discovery: --config wins; otherwise the first conventional name in
+// the working directory. Null when nothing is found — defaults apply.
+function discoverConfig() {
+  for (const name of ['svg-lint.config.mjs', '.svglintrc.mjs', 'svg-lint.config.json']) {
+    if (existsSync(name)) return name;
+  }
+  return null;
+}
+
+async function applyConfig(explicit) {
+  const path = explicit ?? discoverConfig();
+  if (path === null) return;
+  let overrides;
+  if (path.endsWith('.json')) overrides = JSON.parse(readFileSync(path, 'utf8'));
+  else overrides = (await import(`${process.cwd()}/${path}`)).default;
+  setConfig(overrides);
+}
+
+async function main(argv) {
   const parsed = parseArgv(argv);
   if (parsed.help) {
     process.stdout.write(USAGE);
@@ -46,6 +73,12 @@ function main(argv) {
   }
   if (parsed.unknownOption) {
     process.stderr.write(`Unknown option: ${parsed.unknownOption}\n\n${USAGE}`);
+    return 2;
+  }
+  try {
+    await applyConfig(parsed.options.config);
+  } catch (cause) {
+    process.stderr.write(`Cannot load config: ${cause.message}\n`);
     return 2;
   }
   const { files, json } = parsed.options;
@@ -103,4 +136,4 @@ function main(argv) {
 // process.exit() drops output still queued when stdout is a pipe, because a pipe write is
 // asynchronous. Measured on this machine: a batch printing past 64KB arrived cut off at 64390
 // bytes. Setting exitCode lets Node exit once the queue has drained.
-process.exitCode = main(process.argv.slice(2));
+process.exitCode = await main(process.argv.slice(2));

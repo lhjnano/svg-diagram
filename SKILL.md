@@ -569,6 +569,10 @@ svg += f'<text>{svg_escape(team_name)}</text>'
 
 ## Editing workflow
 
+### Before anything: per-project configuration
+
+When the diagrams belong to a project with its own governance (a blog, a docs site), read its `svg-lint.config.mjs` first — the palette, spacing band, font stack (and whether it is declared inline on `<svg>` or in a `<style>` block), viewBox margins and box minimums may all differ from the defaults in this document. Lint with the config in scope: `svg-lint` picks up `svg-lint.config.mjs` from the working directory automatically. Every number in this skill's rules is a default, not a law; the config file is the law for that project.
+
 ### Before anything: matplotlib exports
 
 Figures exported from matplotlib carry `rotate(-0)` on every text and put font/paint in `style=` attributes — the linter models both. Three rules for the export source, so the SVG matches this skill:
